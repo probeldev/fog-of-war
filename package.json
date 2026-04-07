@@ -1,0 +1,32 @@
+{
+  "name": "fog-of-war",
+  "version": "1.0.0",
+  "displayName": "Туман Войны",
+  "description": "Исследуй свой город - открывай карту шаг за шагом",
+  "main": "www/index.html",
+  "scripts": {
+    "serve": "cd www && npx http-server -p 8080 -c-1 --cors",
+    "build:cordova": "echo 'Build with: cordova build android/ios'"
+  },
+  "keywords": [
+    "ecosystem:cordova"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "cordova-android": "^14.0.0",
+    "cordova-plugin-geolocation": "^5.0.0",
+    "cordova-plugin-native-location": "file:plugins/cordova-plugin-native-location",
+    "http-server": "^14.1.1"
+  },
+  "cordova": {
+    "platforms": [
+      "android"
+    ],
+    "plugins": {
+      "cordova-plugin-geolocation": {
+        "GPS_REQUIRED": "true"
+      }
+    }
+  }
+}

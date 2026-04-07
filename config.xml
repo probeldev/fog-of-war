@@ -1,0 +1,36 @@
+<?xml version='1.0' encoding='utf-8'?>
+<widget id="com.fogofwar.app" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0" xmlns:android="http://schemas.android.com/apk/res/android">
+    <name>Туман Войны</name>
+    <description>
+        Исследуй свой город - открывай карту шаг за шагом
+    </description>
+    <author email="dev@example.com" href="http://example.com">
+        Fog of War Team
+    </author>
+    <content src="index.html" />
+    <allow-intent href="http://*/*" />
+    <allow-intent href="https://*/*" />
+    
+    <preference name="Orientation" value="portrait" />
+    <preference name="Fullscreen" value="true" />
+    <preference name="AndroidWindowSplashScreenAnimatedIcon" value="res/screen.png" />
+    
+    <platform name="android">
+        <preference name="android-minSdkVersion" value="22" />
+        <preference name="android-targetSdkVersion" value="35" />
+        <config-file parent="/*" target="AndroidManifest.xml">
+            <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+            <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+            <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+        </config-file>
+    </platform>
+    
+    <platform name="ios">
+        <config-file platform="ios" target="*-Info.plist" parent="NSLocationWhenInUseUsageDescription">
+            <string>Приложение использует геолокацию для отслеживания вашего перемещения по городу</string>
+        </config-file>
+        <config-file platform="ios" target="*-Info.plist" parent="NSLocationAlwaysAndWhenInUseUsageDescription">
+            <string>Приложение использует геолокацию для отслеживания вашего перемещения по городу</string>
+        </config-file>
+    </platform>
+</widget>
