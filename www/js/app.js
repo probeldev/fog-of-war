@@ -19,7 +19,11 @@
         gpsUpdateInterval: 1000,  // 1 second
         gridResolution: 10,       // meters per grid cell
         storageKey: 'fogofwar_progress',
-        settingsKey: 'fogofwar_settings'
+        settingsKey: 'fogofwar_settings',
+        // Walking detection
+        maxWalkingSpeed: 2.5,     // m/s (~9 km/h) — max speed for walking
+        minWalkingDistance: 3,    // meters — min movement to count
+        walkingCheckInterval: 5000 // ms — interval to check speed
     };
 
     // ============================================
@@ -38,6 +42,9 @@
         startTime: null,
         timerInterval: null,
         isTracking: false,
+        isWalking: true,          // assume walking by default
+        lastSpeedCheck: null,
+        lastSpeedCheckPosition: null,
         settings: {
             radius: CONFIG.defaultRadius,
             fogOpacity: CONFIG.defaultFogOpacity
@@ -86,6 +93,17 @@
         const cellLat = Math.round(lat / resolution) * resolution;
         const cellLng = Math.round(lng / resolution) * resolution;
         return `${cellLat.toFixed(6)},${cellLng.toFixed(6)}`;
+    }
+
+    function metersToPixelRadius(meters, lat, lng) {
+        // Get the container point for the given lat/lng
+        const point = state.map.latLngToContainerPoint([lat, lng]);
+        // Get the container point for a position offset by the given meters to the east
+        // 1 degree longitude ≈ 111320 * cos(lat) meters
+        const lngOffset = meters / (111320 * Math.cos(lat * Math.PI / 180));
+        const pointOffset = state.map.latLngToContainerPoint([lat, lng + lngOffset]);
+        // Return the pixel distance
+        return Math.abs(pointOffset.x - point.x);
     }
 
     function showToast(message, duration = 2000) {
@@ -346,27 +364,18 @@
         ctx.globalCompositeOperation = 'destination-out';
 
         const bounds = state.map.getBounds();
-        const resolution = CONFIG.gridResolution;
-
-        // Convert bounds to cell range
-        const minLat = bounds.getSouth();
-        const maxLat = bounds.getNorth();
-        const minLng = bounds.getWest();
-        const maxLng = bounds.getEast();
-
-        const resolutionDeg = resolution / 111320;
 
         // Iterate through explored cells and draw revealed circles
         state.exploredCells.forEach(cellKey => {
             const [cellLat, cellLng] = cellKey.split(',').map(Number);
-            
+
             // Check if cell is visible on screen
-            if (cellLat >= minLat && cellLat <= maxLat && 
-                cellLng >= minLng && cellLng <= maxLng) {
-                
+            if (cellLat >= bounds.getSouth() && cellLat <= bounds.getNorth() &&
+                cellLng >= bounds.getWest() && cellLng <= bounds.getEast()) {
+
                 const point = state.map.latLngToContainerPoint([cellLat, cellLng]);
-                const radius = state.settings.radius * (state.map.getZoom() / 15);
-                
+                const radius = metersToPixelRadius(state.settings.radius, cellLat, cellLng);
+
                 // Create gradient for smooth edges
                 const gradient = ctx.createRadialGradient(
                     point.x, point.y, 0,
@@ -375,7 +384,7 @@
                 gradient.addColorStop(0, 'rgba(0, 0, 0, 1)');
                 gradient.addColorStop(0.7, 'rgba(0, 0, 0, 0.8)');
                 gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
-                
+
                 ctx.fillStyle = gradient;
                 ctx.beginPath();
                 ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
@@ -402,28 +411,28 @@
                 return;
             }
 
-            console.log('isCordova: true, window.cordova:', !!window.cordova);
-            console.log('navigator.nativeLocation:', !!navigator.nativeLocation);
-            console.log('cordova.exec:', !!cordova.exec);
+            console.log('Requesting location permission via Geolocation plugin...');
 
-            if (!navigator.nativeLocation) {
-                console.error('navigator.nativeLocation NOT available!');
-                showToast('Геолокация недоступна');
-                reject(new Error('nativeLocation not available'));
-                return;
+            // Call cordova-plugin-geolocation's getPermission directly via exec
+            // This plugin is properly registered and will show the system permission dialog
+            if (cordova.exec) {
+                cordova.exec(
+                    function(result) {
+                        console.log('Permission GRANTED, SDK:', result);
+                        resolve();
+                    },
+                    function(error) {
+                        console.error('Permission DENIED:', error);
+                        reject(error);
+                    },
+                    'Geolocation',
+                    'getPermission',
+                    [true]
+                );
+            } else {
+                console.error('cordova.exec not available');
+                reject(new Error('cordova.exec not available'));
             }
-
-            console.log('Requesting location permission via native plugin...');
-            navigator.nativeLocation.getPermission(
-                function(result) {
-                    console.log('Location permission GRANTED, SDK:', result);
-                    resolve();
-                },
-                function(error) {
-                    console.error('Location permission DENIED:', error);
-                    reject(error);
-                }
-            );
         });
     }
 
@@ -513,6 +522,7 @@
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
         const accuracy = position.coords.accuracy || 20;
+        const speed = position.coords.velocity; // m/s from GPS
 
         state.currentLat = lat;
         state.currentLng = lng;
@@ -528,17 +538,59 @@
                 lat,
                 lng
             );
-            
-            // Only count if moved more than 5 meters (GPS noise filter)
-            if (dist > 5) {
-                state.totalDistance += dist;
+
+            // Check if walking (not in vehicle)
+            const now = Date.now();
+            if (state.lastSpeedCheck && state.lastSpeedCheckPosition) {
+                const timeDiff = (now - state.lastSpeedCheck) / 1000; // seconds
+                const distDiff = haversineDistance(
+                    state.lastSpeedCheckPosition.lat,
+                    state.lastSpeedCheckPosition.lng,
+                    lat,
+                    lng
+                );
+
+                if (timeDiff > 0 && distDiff > 0) {
+                    const calculatedSpeed = distDiff / timeDiff; // m/s
+
+                    // Use both GPS speed (if available) and calculated speed
+                    const effectiveSpeed = speed !== null && speed >= 0 ? speed : calculatedSpeed;
+
+                    // If speed is too high, likely in vehicle
+                    if (effectiveSpeed > CONFIG.maxWalkingSpeed) {
+                        if (state.isWalking) {
+                            console.log('Speed too high, likely in vehicle:', effectiveSpeed.toFixed(1), 'm/s');
+                            state.isWalking = false;
+                            showToast('🚗 Обнаружен транспорт — карта не открывается');
+                        }
+                    } else {
+                        if (!state.isWalking) {
+                            state.isWalking = true;
+                            showToast('🚶 Режим ходьбы — карта открывается');
+                        }
+                    }
+                }
             }
+
+            // Update speed check reference
+            if (!state.lastSpeedCheck || (now - state.lastSpeedCheck) > CONFIG.walkingCheckInterval) {
+                state.lastSpeedCheck = now;
+                state.lastSpeedCheckPosition = { lat, lng };
+            }
+
+            // Only count distance and reveal if walking
+            if (state.isWalking && dist > CONFIG.minWalkingDistance) {
+                state.totalDistance += dist;
+                revealArea(lat, lng);
+            }
+        } else {
+            // First position fix
+            state.lastSpeedCheck = Date.now();
+            state.lastSpeedCheckPosition = { lat, lng };
+            revealArea(lat, lng);
         }
 
         state.lastPosition = { lat, lng };
-
-        // Reveal area around current position
-        revealArea(lat, lng);
 
         // Update UI
         updateStats();
@@ -652,6 +704,18 @@
         if (state.startTime) {
             const elapsed = Math.floor((Date.now() - state.startTime) / 1000);
             document.getElementById('time').textContent = formatTime(elapsed);
+        }
+
+        // Walking/vehicle mode indicator
+        const modeEl = document.getElementById('mode-indicator');
+        if (modeEl) {
+            if (state.isWalking) {
+                modeEl.innerHTML = '<span class="stat-icon">🚶</span>';
+                modeEl.title = 'Режим: пешком';
+            } else {
+                modeEl.innerHTML = '<span class="stat-icon">🚗</span>';
+                modeEl.title = 'Режим: транспорт (карта не открывается)';
+            }
         }
     }
 
