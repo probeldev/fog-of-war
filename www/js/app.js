@@ -496,9 +496,89 @@
 
         // Start timer
         startTimer();
-        
+
         // Auto-save periodically
         setInterval(saveProgress, CONFIG.saveInterval);
+    }
+
+    function startBackgroundTracking() {
+        if (!isCordova()) {
+            startTracking();
+            return;
+        }
+
+        // Start the foreground service for background GPS
+        if (window.backgroundLocation) {
+            console.log('Starting background location service...');
+            window.backgroundLocation.start(
+                function() {
+                    console.log('Background service started');
+                },
+                function(err) {
+                    console.error('Failed to start background service:', err);
+                }
+            );
+        }
+
+        // Also start regular tracking for when app is in foreground
+        startTracking();
+    }
+
+    function stopBackgroundTracking() {
+        if (!isCordova()) {
+            stopTracking();
+            return;
+        }
+
+        // Stop the foreground service
+        if (window.backgroundLocation) {
+            console.log('Stopping background location service...');
+            window.backgroundLocation.stop(
+                function() {
+                    console.log('Background service stopped');
+                },
+                function(err) {
+                    console.error('Failed to stop background service:', err);
+                }
+            );
+        }
+
+        stopTracking();
+    }
+
+    /**
+     * Process locations collected by background service while screen was locked
+     */
+    function processBackgroundLocations() {
+        if (!isCordova() || !window.backgroundLocation) {
+            return;
+        }
+
+        window.backgroundLocation.getPendingLocations(
+            function(locations) {
+                if (locations && locations.length > 0) {
+                    console.log('Processing', locations.length, 'background locations');
+                    for (var i = 0; i < locations.length; i++) {
+                        var loc = locations[i];
+                        var position = {
+                            coords: {
+                                latitude: loc.latitude,
+                                longitude: loc.longitude,
+                                accuracy: loc.accuracy || 20,
+                                altitude: loc.altitude || 0,
+                                velocity: loc.speed || 0
+                            },
+                            timestamp: loc.timestamp
+                        };
+                        onPositionUpdate(position);
+                    }
+                    showToast('📍 Обработано ' + locations.length + ' точек за время блокировки');
+                }
+            },
+            function(err) {
+                console.error('Failed to get background locations:', err);
+            }
+        );
     }
 
     function stopTracking() {
@@ -736,7 +816,7 @@
                 }
             }
 
-            startTracking();
+            startBackgroundTracking();
         });
 
         // Center button
@@ -886,6 +966,26 @@
             }
         }
     }
+
+    // Handle Cordova lifecycle events for background tracking
+    document.addEventListener('pause', function() {
+        console.log('App paused - background service keeps running');
+    }, false);
+
+    document.addEventListener('resume', function() {
+        console.log('App resumed - processing background locations');
+        if (state.isTracking) {
+            processBackgroundLocations();
+        }
+    }, false);
+
+    // Also process background locations when app becomes visible again
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden && state.isTracking && isCordova()) {
+            console.log('App visible again - processing background locations');
+            processBackgroundLocations();
+        }
+    });
 
     waitForReady();
 
