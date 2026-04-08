@@ -1,0 +1,10 @@
+{
+  "name": "cordova-plugin-native-location",
+  "version": "1.0.0",
+  "description": "Native Android location plugin using LocationManager directly",
+  "cordova": {
+    "id": "cordova-plugin-native-location",
+    "platforms": ["android"]
+  },
+  "license": "MIT"
+}

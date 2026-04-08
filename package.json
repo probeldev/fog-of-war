@@ -17,7 +17,8 @@
     "cordova-android": "^14.0.0",
     "cordova-plugin-geolocation": "^5.0.0",
     "cordova-plugin-native-location": "file:plugins/cordova-plugin-native-location",
-    "http-server": "^14.1.1"
+    "http-server": "^14.1.1",
+    "cordova-plugin-background-location": "file:plugins/cordova-plugin-background-location"
   },
   "cordova": {
     "platforms": [
@@ -26,7 +27,10 @@
     "plugins": {
       "cordova-plugin-geolocation": {
         "GPS_REQUIRED": "true"
-      }
+      },
+      "cordova-plugin-native-location": {},
+      "cordova-plugin-background-location": {}
     }
-  }
+  },
+  "dependencies": {}
 }

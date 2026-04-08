@@ -12,5 +12,12 @@
       "PACKAGE_NAME": "com.fogofwar.app"
     }
   },
-  "dependent_plugins": {}
+  "dependent_plugins": {
+    "cordova-plugin-background-location": {
+      "PACKAGE_NAME": "com.fogofwar.app"
+    },
+    "cordova-plugin-native-location": {
+      "PACKAGE_NAME": "com.fogofwar.app"
+    }
+  }
 }

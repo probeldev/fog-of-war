@@ -10,7 +10,12 @@
     <content src="index.html" />
     <allow-intent href="http://*/*" />
     <allow-intent href="https://*/*" />
-    
+
+    <!-- Plugins -->
+    <plugin name="cordova-plugin-geolocation" spec="^5.0.0" />
+    <plugin name="cordova-plugin-native-location" spec="file:plugins/cordova-plugin-native-location" />
+    <plugin name="cordova-plugin-background-location" spec="file:plugins/cordova-plugin-background-location" />
+
     <preference name="Orientation" value="portrait" />
     <preference name="Fullscreen" value="true" />
     <preference name="AndroidWindowSplashScreenAnimatedIcon" value="res/screen.png" />

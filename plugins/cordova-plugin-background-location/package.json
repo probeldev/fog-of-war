@@ -1,0 +1,10 @@
+{
+  "name": "cordova-plugin-background-location",
+  "version": "1.0.0",
+  "description": "Foreground service for GPS tracking while screen is locked",
+  "cordova": {
+    "id": "cordova-plugin-background-location",
+    "platforms": ["android"]
+  },
+  "license": "MIT"
+}
